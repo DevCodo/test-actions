@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: smenateam/youtrack-issue-action@releases/v2
+      with:
+        youtrack_url: https://youtrack.smena.space
+        youtrack_token: ${{ secrets.youtrack_token }}
+        repo_token: ${{ secrets.repo_token }}
