@@ -1,6 +1,6 @@
-# test-actions
+# farfor-nuxt
 
-> My gnarly Nuxt.js project
+> Farfor Nuxt
 
 ## Build Setup
 
