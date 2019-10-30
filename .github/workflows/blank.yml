@@ -9,18 +9,18 @@ jobs:
     - uses: actions/checkout@v1
     - run: npm run build 
   job2:
-    needs: job1
+    # needs: job1
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
     - run: npm test
-  # job3:
-  #   needs: job1
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     env:
-  #       GITHUB_CONTEXT: ${{ toJson(github) }}
-  #       run: echo "$GITHUB_CONTEXT"
+  job3:
+    # needs: job1
+    runs-on: ubuntu-latest
+    steps:
+    - env:
+      GITHUB_CONTEXT: ${{ toJson(github) }}
+    - run: echo "$GITHUB_CONTEXT"
   # build:
 
   #   runs-on: ubuntu-latest
