@@ -1,0 +1,251 @@
+defaults: &defaults
+  working_directory: ~/app
+  docker:
+    - image: cypress/browsers:chrome69
+  environment:
+    TZ: 'Asia/Yekaterinburg'
+
+version: 2.1
+
+orbs:
+  slack: circleci/slack@1.0.0
+
+jobs:
+  deploy_master:
+    <<: *defaults
+
+      steps:
+      # - checkout
+      # - add_ssh_keys
+      # - restore_cache:
+      #     keys:
+      #       - cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+      #       - cache-
+      # - run: npm ci
+      # - run: npm install pm2 -g
+      # - run: npm install hygen -g
+
+      # - save_cache:
+      #     key: cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+      #     paths:
+      #       - node_modules
+      #       - ~/.npm
+      #       - ~/.cache
+
+      # - persist_to_workspace:
+      #     root: ~/
+      #     paths:
+      #       - .cache/Cypress
+
+      - run: npm run build
+
+      # - run: ssh-keyscan -H ${SSH_STAGING_HOST} >> ~/.ssh/known_hosts
+
+      # # $(echo $CIRCLE_BRANCH | grep -iE -o "sb-[0-9]+" |grep -iE -o "[0-9]+")
+      # # определяем сначала номер задачи sb-232, затем выделяем число
+      # - run: hygen new ecosystem --branch ${CIRCLE_BRANCH} --user ${SSH_USER} --host ${SSH_STAGING_HOST} --port 4$(echo $CIRCLE_BRANCH | grep -iE -o "sb-[0-9]+" |grep -iE -o "[0-9]+")  --path ${SSH_STAGING_DEPLOY_PATH} --instances 1
+
+      # - run: pm2 deploy staging setup || true
+
+      # - run: scp ~/app/ecosystem.config.js "${SSH_USER}@${SSH_STAGING_HOST}:${SSH_STAGING_DEPLOY_PATH}${CIRCLE_BRANCH}/current/"
+
+      # - run: pm2 deploy staging
+
+      # - slack/notify:
+      #     message: "Выгружено на http://ufa.sb-$(echo $CIRCLE_BRANCH | egrep -o '[0-9]+').sbstaging.ru/ и http://bratsk.sb-$(echo $CIRCLE_BRANCH | egrep -o '[0-9]+').sbstaging.ru/"
+      #     color: '#42e2f4'
+
+  deploy_develop:
+    <<: *defaults
+
+    steps:
+      - checkout
+
+      # добавляем ключи на circleci, чтобы можно было выгружать через ssh
+      # приватные ключи для доступа к серверу куда будет деплоиться, должны быть предварительно загружены в circle ci
+      # https://circleci.com/gh/smenateam/sushibox-nuxt/edit#checkout
+      - add_ssh_keys
+
+      # find compatible cache from previous build,
+      # it should have same dependencies installed from package.json checksum
+      - restore_cache:
+          keys:
+            - cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - cache-
+
+      # устанавливаем зависимости из package-lock.json
+      - run: npm ci
+      # устанавливаем глобально, чтобы было удобно работать
+      - run: npm install pm2 -g
+      - run: npm install hygen -g
+
+      - save_cache:
+          key: cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+            - ~/.npm
+            - ~/.cache
+
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .cache/Cypress
+
+      - run: npm run build:staging
+
+      # чтобы было можно работать с ssh — сохраняем fingerprint
+      - run: ssh-keyscan -H ${SSH_STAGING_HOST} >> ~/.ssh/known_hosts
+
+      # Генерируем для deploy pm2 конфиг через hygen
+      # http://pm2.keymetrics.io/docs/usage/deployment/
+      # Все параметры генерируемого для pm2 конфига можно посмотреть в _templates/new/ecosystem.config.esj.t
+
+      - run: hygen new ecosystem --branch ${CIRCLE_BRANCH} --user ${SSH_USER} --host ${SSH_STAGING_HOST} --port 4000  --path ${SSH_STAGING_DEPLOY_PATH} --instances 1
+
+      # пробуем развернуть на сервере проект, если уже развернут, то скипаем
+      - run: pm2 deploy staging setup || true
+
+      # загружаем конфиг для pm2 на сервер через scp
+      - run: scp ~/app/ecosystem.config.js "${SSH_USER}@${SSH_STAGING_HOST}:${SSH_STAGING_DEPLOY_PATH}${CIRCLE_BRANCH}/current/"
+
+      # делаем pull и рестартим проект
+      - run: pm2 deploy staging
+
+      # Профит
+      - slack/notify:
+          message: 'Выгружено на http://ufa.sbstaging.ru/, так же доступен http://bratsk.sbstaging.ru/'
+          color: '#42e2f4'
+
+  deploy_branches:
+    <<: *defaults
+
+    steps:
+      - checkout
+      - add_ssh_keys
+      - restore_cache:
+          keys:
+            - cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+            - cache-
+      - run: npm ci
+      - run: npm install pm2 -g
+      - run: npm install hygen -g
+
+      - save_cache:
+          key: cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+            - ~/.npm
+            - ~/.cache
+
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .cache/Cypress
+
+      - run: npm run build:staging
+
+      - run: ssh-keyscan -H ${SSH_STAGING_HOST} >> ~/.ssh/known_hosts
+
+      # $(echo $CIRCLE_BRANCH | grep -iE -o "sb-[0-9]+" |grep -iE -o "[0-9]+")
+      # определяем сначала номер задачи sb-232, затем выделяем число
+      - run: hygen new ecosystem --branch ${CIRCLE_BRANCH} --user ${SSH_USER} --host ${SSH_STAGING_HOST} --port 4$(echo $CIRCLE_BRANCH | grep -iE -o "sb-[0-9]+" |grep -iE -o "[0-9]+")  --path ${SSH_STAGING_DEPLOY_PATH} --instances 1
+
+      - run: pm2 deploy staging setup || true
+
+      - run: scp ~/app/ecosystem.config.js "${SSH_USER}@${SSH_STAGING_HOST}:${SSH_STAGING_DEPLOY_PATH}${CIRCLE_BRANCH}/current/"
+
+      - run: pm2 deploy staging
+
+      - slack/notify:
+          message: "Выгружено на http://ufa.sb-$(echo $CIRCLE_BRANCH | egrep -o '[0-9]+').sbstaging.ru/ и http://bratsk.sb-$(echo $CIRCLE_BRANCH | egrep -o '[0-9]+').sbstaging.ru/"
+          color: '#42e2f4'
+
+  test:
+    <<: *defaults
+    parallelism: 2
+    steps:
+      # - checkout
+      # - restore_cache:
+      #     keys:
+      #       - cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+      # - run: npm ci
+      # - save_cache:
+      #     key: cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+      #     paths:
+      #       - node_modules
+      #       - ~/.npm
+      #       - ~/.cache
+      # - persist_to_workspace:
+      #     root: ~/
+      #     paths:
+      #       - .cache/Cypress
+      # - run: echo "127.0.0.1  ufa.localhost" >> /etc/hosts
+      # - run: echo "127.0.0.1  bratsk.localhost" >> /etc/hosts
+      - run: npm run build
+      - run: npm test
+      # - store_test_results:
+      #     path: test-reports
+      # - store_artifacts:
+      #     path: test-reports
+
+  test_e2e_with_percy:
+    <<: *defaults
+    parallelism: 2
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+      - run: npm ci
+      - save_cache:
+          key: cache-{{ .Branch }}-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+            - ~/.npm
+            - ~/.cache
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .cache/Cypress
+      - run: echo "127.0.0.1  ufa.localhost" >> /etc/hosts
+      - run: echo "127.0.0.1  bratsk.localhost" >> /etc/hosts
+      - run: npm run build:ci
+      - run: npm run ci:e2e:percy
+      - store_test_results:
+          path: test-reports
+      - store_artifacts:
+          path: test-reports
+
+workflows:
+  version: 2
+  test_build_app:
+    jobs:
+      - deploy_master:
+          filters:
+            branches:
+              only:
+                - master
+      - test_e2e:
+          filters:
+            branches:
+              only:
+                - master
+      - test_e2e_with_percy:
+          filters:
+            branches:
+              ignore:
+                - master
+                - /dependabot.*/
+      - deploy_develop:
+          filters:
+            branches:
+              only:
+                - develop
+      - deploy_branches:
+          filters:
+            branches:
+              ignore:
+                - master
+                - develop
+                - /dependabot.*/
