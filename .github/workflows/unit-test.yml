@@ -2,8 +2,8 @@ name: unit-test
 
 on:
   push:
-    branches-ignore:
-      - master
+    # branches-ignore:
+      # - master
 
 jobs:
   unit-test:
@@ -11,6 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # - uses: actions/checkout@v1
+      - uses: actions/checkout@v1
       - run: npm ci
       - run: npm run test:unit
